@@ -1,28 +1,62 @@
 * Background
 
-This Debian package provides scripts for building Debian packages
-inside Jenkins (being a Continuous integration system).  Currently
-being a test driven and user needs driven prototype it's meant to make
-Q/A builds of Debian packages inside Jenkins as manageable and
-homogeneous as possible.
+jenkins-debian-glue provides scripts for building Debian packages via Jenkins (a
+Continuous integration system).  It tries to minimize the required steps to get
+it up and running and keep it as manageable and homogeneous as possible.
 
 * System requirements
 
 + Jenkins
++ Debian
 + Cowbuilder
 + Reprepro
 
 * Setup instructions
 
-Jenkins jobs for a given Debian package /foobar/ needs to be named
-/foobar-binaries/ and /foobar-source/. /foobar-source/ is the job name
-where the source package is being built and /foobar-binaries/ is the
-job name where the Debian binary packages are being built.
+Jenkins jobs for a given Debian package /foobar/ are supposed to be named
+/foobar-binaries/ and /foobar-source/. /foobar-source/ is the job name where
+the source package is being built and /foobar-binaries/ is the job name where
+the Debian binary packages are being built.
 
-If a second job for an already existing job for the Debian package
-/foobar/ should be available then the name /foobar-test/ with the
-according Jenkins jobs /foobar-test-source/ and /foobar-test-binaries/
-is supported.
+** Useful Jenkins Plugins
+
++ "ArtifactDeployer Plugin"
+This plugin provides the option to deploy artifacts from the source job to the
+binaries job. Once this plugin is installed you can enable the option
+"Deploy artifacts from workspace to remote directories" inside the *-source job
+with the following settings:
+
+  :Files to deploy: *.gz,*.bz2,*.xz,*.deb,*.dsc,*.changes
+
+  :Remote directory: ${JENKINS_HOME}/userContent/${JOB_NAME}/
+
++ Git Plugin
+
+When building Debian source packages using Git the "Git plugin" provides the
+according Jenkins integration.
+
+On the build system you need git-buildpackage and a basic Git configuration for
+the user under which Jenkins is running (usually being 'jenkins'):
+
+#+BEGIN_EXAMPLE
+# apt-get install git-buildpackage
+# su - jenkins
+% git config --global user.email "jenkins@example.org"
+% git config --global user.name "Jenkins User"
+#+END_EXAMPLE
+
++ Subversion Plugin
+
+This plugin is shipped by Jenkins core nowadays, but to use it with Debian
+packages please make sure you've subversion-tools available on the build system:
+
+  # apt-get install subversion-tools
+
++ Parameterized Trigger plugin
+
+This plugin isn't necessary but provides the "Trigger parameterized build on
+other projects" option which provides a decent way for release builds. (TODO:
+clarify)
 
 ** Source job configuration (foobar-source)
 
@@ -104,14 +138,29 @@ Under "/Post-build Actions/" select "/Archive the artifacts/" using:
 
 + *increase-version-number*: takes a version number as commandline argument and raises the version number for usage inside as a new snapshot version. It does not append any special characters (like $BUILD_NUMBER or VCS revisions), so you can use it with your own suffix, build numbers, VCS info, etc.
 
+* FAQ
+
+** How do I use Debian packages which aren't available via Git or Subversion?
+
+TODO: document steps for debcheckout
+
+** How can I add multiple Jenkins jobs for the same software package?
+
+If you need further Jenkins jobs for the same package you can achieve that by
+setting the /REPOS/ environment variable. Let's assume you already have the
+Jenkins jobs /foobar-source/ and /foobar-binaries/ for a software package called
+/foobar/. To use /foobar/ with different settings as project /foobar-testing/
+all you've to do is setting the /REPOS/ environment variable inside the build
+steps of the Jenkins job. Usage example for /foobar-testing-binaries/:
+
+#+BEGIN_EXAMPLE
+REPOS="${JOB_NAME%-testing-binaries*}"
+/usr/bin/generate-reprepro-codename "${REPOS}"
+#+END_EXAMPLE
+
 * Known TODOs
 
-+ Make configuration more flexible (repository path, cowbuilder base dirs,...).
-+ Separate cowbuilder and reprepro steps in build-and-provide-package
-  (e.g. to use generate-local-repository instead of reprepro).
-+ Make sure scaling with slave node works (including tagging of hosts, deploying files,...).
-+ Provide Jenkins plugin to deploy and configure cowbuilder.
-+ Provide Jenkins plugin to deploy and configure reprepro (including gpg key).
++ Make sure scaling with slave node works (incl. shared build environments e.g. via NFS chroots)
 
 * Author
 Michael Prokop <mika@debian.org>
