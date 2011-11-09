@@ -217,6 +217,14 @@ if [ "$architecture" = "amd64" ] || $archall ; then
 fi
 }
 
+# TODO - make more generic
+if [ -d "${REPOSITORY}"/release/trunk ] ; then
+  cp "${WORKSPACE}/binaries/"* "${REPOSITORY}/release/trunk/"
+  [ $? -eq 0 ] || bailout 1 "Failed to copy binary packages to trunk release directory."
+  sudo reprepro -v -b "${REPOSITORY}" processincoming trunk
+  [ $? -eq 0 ] || bailout 1 "Failed to execute processincoming for release trunk."
+fi
+
 if [ "${REMOTE_REPOS:-}" = "true" ] ; then
   echo "Config variable 'REMOTE_REPOS' is set, ignoring request to use local repository."
 elif [ -n "${release:-}" ] && [ "$release" != "none" ] && [ "$release" != "trunk" ] ; then
