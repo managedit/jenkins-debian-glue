@@ -25,7 +25,7 @@ fi
 
 # make sure we don't leave files for next run
 bailout() {
-  if [ -n "${sources:-}" ] && [ "${source:-}" != "unset" ] ; then
+  if [ -n "${sources:-}" ] && [ "${sources:-}" != "unset" ] ; then
     echo "*** Removing sources file. ***"
     rm -f "${sources}/"*
   fi
@@ -217,22 +217,70 @@ if [ "$architecture" = "amd64" ] || $archall ; then
 fi
 }
 
+trunk_release() {
 # setting TRUNK_RELEASE=true enables release-trunk repository,
 # to always get a copy of the package(s) to a central place
 if [ "${TRUNK_RELEASE:-}" = "true" ] ; then
-  RELEASE=trunk
-  TRUNK_REPOSITORY="${REPOSITORY}/release/${RELEASE}"
+  local RELEASE='trunk'
+  # TODO - support setting REPOS in config?
+  local REPOS="release-$RELEASE"
 
-  if ! [ -d "$TRUNK_REPOSITORY" ] ; then
-    bailout 1 "Enabled TRUNK_RELEASE but $TRUNK_REPOSITORY does not exist."
-  else
-    cp "${WORKSPACE}/binaries/"* "$TRUNK_REPOSITORY"
-    [ $? -eq 0 ] || bailout 1 "Failed to copy binary packages to trunk release directory."
+  # where binaries will be copied to
+  #TRUNK_REPOSITORY="${REPOSITORY}/release/${RELEASE}"
+  local TRUNK_REPOSITORY="${REPOSITORY}/incoming/$RELEASE"
+  sudo mkdir -p "${TRUNK_REPOSITORY}"
+  sudo chown -R "$(id -un)" "${TRUNK_REPOSITORY}"
 
-    sudo reprepro -v -b "${REPOSITORY}" processincoming "$RELEASE"
-    [ $? -eq 0 ] || bailout 1 "Failed to execute processincoming for release trunk."
+  generate-reprepro-codename "$REPOS"
+  sudo mkdir -p "${REPOSITORY}/conf"
+  sudo chown -R "$(id -un)" "${REPOSITORY}/conf"
+
+  if ! grep -q "^Name: ${RELEASE}$" "${REPOSITORY}/conf/incoming" 2>/dev/null ; then
+    cat >> "${REPOSITORY}/conf/incoming" << EOF
+Name: $RELEASE
+IncomingDir: incoming/$RELEASE
+TempDir: tmp
+LogDir: log
+MorgueDir: ${REPOSITORY}/morgue
+Allow: unstable>$REPOS
+Cleanup: unused_files on_deny on_error
+
+EOF
   fi
+
+  cp "${WORKSPACE}/binaries/"* "$TRUNK_REPOSITORY"
+  [ $? -eq 0 ] || bailout 1 "Failed to copy binary packages to trunk release directory."
+
+  # {{{
+  echo "*** Removing previous versions from repository ***"
+  for p in $(dcmd "${WORKSPACE}/binaries/"*"${newest_version}_${ARCH}.changes") ; do
+    file="$(basename $p)"
+    binpackage="${file%%_*}"
+    binary_list="${binary_list:-} ${binpackage}"
+
+    # note: "removesrc" would remove foreign arch files (of different builds)
+    echo "*** Removing existing package ${binpackage} from repository ${REPOS} ***"
+    sudo reprepro -v -b "${REPOSITORY}" --waitforlock 1000 remove "${REPOS}" "${binpackage}"
+  done
+
+  for p in $(sudo reprepro -v -b "${REPOSITORY}" --waitforlock 1000 listmatched "${REPOS}" '*' | awk '{print $2}' | sort -u); do
+    echo "$binary_list" | grep -q "$p" || missing_packages="${missing_packages:-} $p"
+  done
+
+  if echo "${missing_packages:-}" | grep -q '[a-z0-9]' ; then
+    echo "*** Binary package(s) found, missing in build version: ${missing_packages:-} ***"
+    for p in $missing_packages ; do
+      echo "Removing $p from $REPOS to avoid out-of-date data ***"
+      sudo reprepro -v -b "${REPOSITORY}" --waitforlock 1000 remove "${REPOS}" "${p}"
+    done
+  fi
+  # }}}
+
+  sudo reprepro -v -b "${REPOSITORY}" processincoming "$RELEASE"
+  [ $? -eq 0 ] || bailout 1 "Failed to execute processincoming for release trunk."
 fi
+}
+trunk_release
 
 if [ "${REMOTE_REPOS:-}" = "true" ] ; then
   echo "Config variable 'REMOTE_REPOS' is set, ignoring request to use local repository."
