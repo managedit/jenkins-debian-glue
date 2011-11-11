@@ -217,12 +217,21 @@ if [ "$architecture" = "amd64" ] || $archall ; then
 fi
 }
 
-# TODO - make more generic
-if [ -d "${REPOSITORY}"/release/trunk ] ; then
-  cp "${WORKSPACE}/binaries/"* "${REPOSITORY}/release/trunk/"
-  [ $? -eq 0 ] || bailout 1 "Failed to copy binary packages to trunk release directory."
-  sudo reprepro -v -b "${REPOSITORY}" processincoming trunk
-  [ $? -eq 0 ] || bailout 1 "Failed to execute processincoming for release trunk."
+# setting TRUNK_RELEASE=true enables release-trunk repository,
+# to always get a copy of the package(s) to a central place
+if [ "${TRUNK_RELEASE:-}" = "true" ] ; then
+  RELEASE=trunk
+  TRUNK_REPOSITORY="${REPOSITORY}/release/${RELEASE}"
+
+  if ! [ -d "$TRUNK_REPOSITORY" ] ; then
+    bailout 1 "Enabled TRUNK_RELEASE but $TRUNK_REPOSITORY does not exist."
+  else
+    cp "${WORKSPACE}/binaries/"* "$TRUNK_REPOSITORY"
+    [ $? -eq 0 ] || bailout 1 "Failed to copy binary packages to trunk release directory."
+
+    sudo reprepro -v -b "${REPOSITORY}" processincoming "$RELEASE"
+    [ $? -eq 0 ] || bailout 1 "Failed to execute processincoming for release trunk."
+  fi
 fi
 
 if [ "${REMOTE_REPOS:-}" = "true" ] ; then

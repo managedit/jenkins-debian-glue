@@ -8,3 +8,7 @@
 # Don't use local reprepro repository.
 # Supported values: [true|false]
 # REMOTE_REPOS=true
+
+# Enable release-trunk repository? This provides getting
+# a copy of each package to a central place.
+# TRUNK_RELEASE=true
