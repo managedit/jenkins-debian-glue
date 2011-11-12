@@ -17,9 +17,10 @@ if [ "$#" -lt 1 ] ; then
   exit 1
 fi
 
-# repository/codename that should be added
+# repository/codename/suite that should be added
 REPOS="$1"
 
+# base repository
 if [ -z "${REPOSITORY:-}" ] ; then
   REPOSITORY='/srv/repository'
   echo "*** Repository variable REPOSITORY is unset, using default [$REPOSITORY] ***"
